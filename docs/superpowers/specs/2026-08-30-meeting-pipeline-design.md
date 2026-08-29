@@ -163,7 +163,7 @@ web/
     lib/api.ts                               (submitMeeting, getMeetingStatus; NEXT_PUBLIC_API_URL)
     lib/types.ts                             (MeetingStatusDto copy)
     lib/sample-transcript.ts
-    hooks/useMeetingStatus.ts                (useEffect + setInterval 1500 ms; clears on done/failed/unmount)
+    hooks/useMeetingStatus.ts                (useEffect + setTimeout chain every 1500 ms; stops on done/failed/unmount)
     components/MeetingCard.tsx               (data null → Skeleton; error → red text; else render(data))
   .env.example                               (NEXT_PUBLIC_API_URL)
 ```
