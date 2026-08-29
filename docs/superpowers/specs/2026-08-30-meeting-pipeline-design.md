@@ -41,14 +41,14 @@ Non-goals: auth, users, billing, SSE/WebSockets, dead-letter queues, prompt qual
 
 ### Data flow
 
-1. `POST /api/meetings { transcript }` → validate → `repo.create({ transcript })` → `queue.add(kind, { meetingId }, { jobId: \`${id}:${kind}\`, attempts: 3, backoff: exponential 500ms })` for each of the three kinds → `202 { id }`.
+1. `POST /api/meetings { transcript }` → validate → `repo.create({ transcript })` → `queue.add(kind, { meetingId }, { jobId: \`${id}-${kind}\`, attempts: 3, backoff: exponential 500ms })` for each of the three kinds → `202 { id }`.
 2. `MeetingWorker` (BullMQ worker, `concurrency: 3`) receives a job, looks up the processor by `job.name`, loads the transcript from the repo, runs `processor.process(transcript)`, and `repo.patch(id, patch)`.
 3. `GET /api/meetings/:id` → `repo.findById` → map to DTO with `status` derived from the fields.
 
 ### Tradeoffs baked in
 
 - **Job payload is `{ meetingId }` only.** The worker reloads the transcript from the repo, keeping a 60-minute transcript out of Redis three times over.
-- **`jobId = ${meetingId}:${kind}`** — BullMQ dedupes by jobId, so a re-submitted meeting cannot enqueue twice.
+- **`jobId = ${meetingId}-${kind}`** — BullMQ dedupes by jobId, so a re-submitted meeting cannot enqueue twice.
 - **`status` is derived at read time** (`failed` if any `errors[kind]`, `done` if `summary`, `actions`, `vector` all non-null, else `processing`). No "all workers done?" race and no counter to keep in sync.
 - **API and worker share one Nest process.** One Render service. `// ponytail: split into a worker entrypoint when API and worker need independent scaling`.
 
@@ -183,7 +183,7 @@ web/
 | 1 | `meeting.entity.spec.ts` | `deriveStatus` table: all null → processing; all set → done; any error → failed (even if others set) | status rules |
 | 2 | `in-memory-meeting.repository.spec.ts` | create returns id + nulls; findById unknown → null; patch merges field; patch merges `errors` | Repository contract |
 | 3 | `summarize.processor.spec.ts` etc. | with `FakeLlmClient` returning canned strings: 3 bullets parsed; invalid JSON throws; vector length 768 | each Strategy |
-| 4 | `meetings.service.spec.ts` | `submit` with a `FakeQueue` recording `add` calls: record created, 3 adds with names = JOB_KINDS, jobId `${id}:${kind}`, data `{ meetingId }`; `status(unknown)` → null | Facade + enqueue contract |
+| 4 | `meetings.service.spec.ts` | `submit` with a `FakeQueue` recording `add` calls: record created, 3 adds with names = JOB_KINDS, jobId `${id}-${kind}`, data `{ meetingId }`; `status(unknown)` → null | Facade + enqueue contract |
 | 5 | `meeting.worker.spec.ts` | `process({ name: 'summarize', data })` → repo patched with summary; unknown name → throws; `onFailed` → `errors[kind]` set | dispatch |
 | 6 | `test/meetings.e2e-spec.ts` | Nest testing module with `InMemoryMeetingRepository` + `FakeQueue` overriding `getQueueToken('meetings')`: POST → 202 `{id}`; POST empty → 400; GET unknown → 404; GET after manual `repo.patch` → fields + status | HTTP surface |
 | 7 | `useMeetingStatus.test.tsx` | fake timers + mocked `fetch`: fetches at t=0 and every 1500 ms; stops after `done` | polling logic |
