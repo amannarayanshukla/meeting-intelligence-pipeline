@@ -81,7 +81,7 @@ function deriveStatus(m: Meeting): MeetingStatus;
 ```
 POST /api/meetings
   body   { transcript: string }      — IsString, Length(1, 200_000)
-  200/202 → 202 { id: string }
+  202    → { id: string }
   400    → validation error (class-validator, global ValidationPipe with whitelist)
 
 GET /api/meetings/:id
@@ -104,7 +104,7 @@ The `web/` folder holds a hand-copied `MeetingStatusDto` type mirroring the GET 
 | Pattern | Classes | Justification |
 |---|---|---|
 | **Strategy** | `interface TranscriptProcessor { readonly kind: JobKind; process(transcript: string): Promise<MeetingPatch> }` → `SummarizeProcessor`, `ActionExtractorProcessor`, `VectorizeProcessor` | Three concrete strategies; worker selects by `job.name` |
-| **Repository** | `abstract class MeetingRepository { create(input: { transcript: string }): Promise<Meeting>; findById(id): Promise<Meeting \| null>; patch(id, patch: MeetingPatch & { errors?: … }): Promise<void> }` → `InMemoryMeetingRepository`, `MongoMeetingRepository` | Tests run on memory; deploy runs on Mongo. Abstract class doubles as the Nest DI token |
+| **Repository** | `abstract class MeetingRepository { create(input: { transcript: string }): Promise<Meeting>; findById(id): Promise<Meeting \| null>; patch(id, patch: MeetingPatch & { errors?: Partial<Record<JobKind, string>> }): Promise<void> }` → `InMemoryMeetingRepository`, `MongoMeetingRepository` | Tests run on memory; deploy runs on Mongo. Abstract class doubles as the Nest DI token |
 | **Adapter** | `abstract class LlmClient { complete(prompt: string): Promise<string>; embed(text: string): Promise<number[]> }` → `MockLlmClient` | Swapping to Gemini is one new file + one provider line. The mock's per-method delay (`summarize` ~1.5 s, `extract_actions` ~3 s, `embed` ~4.5 s) is the demo's staggered-reveal control |
 | **DI multi-provider** | `PROCESSORS` injection token; `MeetingWorker` builds `Map<JobKind, TranscriptProcessor>` from the injected array in its constructor | Adding a fourth processor = one class + one provider entry, no worker edit |
 | **Facade** | `MeetingsService.submit(transcript): Promise<{ id }>` / `status(id): Promise<MeetingStatusDto \| null>` | Controller is two thin handlers |
