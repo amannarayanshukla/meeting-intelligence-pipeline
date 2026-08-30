@@ -2,6 +2,16 @@
 
 Drop a meeting transcript into a BullMQ queue; three workers independently produce a summary, action items, and a vector embedding; the UI polls and reveals each result as it lands.
 
+## Quick start — one command
+
+    git clone https://github.com/amannarayanshukla/meeting-intelligence-pipeline && cd meeting-intelligence-pipeline && ./demo.sh
+
+Needs Docker Desktop. Builds four containers, picks free ports, opens the UI. Click **Load sample → Process Pipeline** and watch the three cards land at 1.5 / 3 / 4.5 s.
+
+![Demo: three cards landing in parallel](docs/demo.gif)
+
+Step-by-step, host-side dev, the 90-second demo script and troubleshooting: [docs/PLAYBOOK.md](docs/PLAYBOOK.md).
+
 ## Links (fill after deploy)
 
 - Live UI: <vercel-url>
@@ -47,6 +57,8 @@ Both `api` and `web` run their tests on Vitest.
     cd web && npm test
 
 ## Proof it's parallel
+
+![Summary and actions landed, vector still pending](docs/screenshot-reveal.jpg)
 
 ```
  web (Next.js, Vercel)                       api (NestJS, Render — API + worker in ONE process)
