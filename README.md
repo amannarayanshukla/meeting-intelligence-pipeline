@@ -17,6 +17,12 @@ Drop a meeting transcript into a BullMQ queue; three workers independently produ
 - Each worker writes only its own field with a per-field `$set` (`errors.<kind>` as a dotted path), so three concurrent writers never clobber each other — no transaction, no counter.
 - Patterns: Strategy (processors), Repository (InMemory for tests / Mongo for deploy), Adapter (`LlmClient` → `MockLlmClient`; a Gemini client is one file away), Nest DI multi-provider (add a fourth processor with one class + one provider line).
 
+## Run everything with Docker
+
+    docker compose up --build            # UI http://localhost:3000, API http://localhost:3001
+
+Four containers: `web` (Next standalone), `api` (NestJS API + BullMQ worker), `redis` (noeviction, as BullMQ requires), `mongo`. Host ports clash? `WEB_PORT=3005 API_PORT=3002 REDIS_PORT=6380 docker compose up --build`. Note `NEXT_PUBLIC_API_URL` is baked into the web image at build time (Next inlines `NEXT_PUBLIC_*` into the browser bundle), which is why it's a build arg keyed off `API_PORT`.
+
 ## Run locally
 
 Three separate terminals, all from the repo root:
