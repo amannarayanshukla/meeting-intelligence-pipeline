@@ -20,6 +20,8 @@ export class MeetingsService {
 
   async submit(transcript: string): Promise<{ id: string }> {
     const { id } = await this.repo.create({ transcript });
+    // ponytail: create-then-enqueue is not atomic — a Redis blip mid-enqueue leaves an orphan record in
+    // `processing` (client got a 500 and never sees the id; jobIds dedupe a retry). Outbox/enqueue-first when it matters.
     // Payload is just the id: the worker reloads the transcript, so a 60-minute transcript never sits in Redis ×3.
     await Promise.all(
       JOB_KINDS.map((kind) =>
