@@ -10,7 +10,7 @@ import {
 } from '../meeting.entity.js';
 import { MeetingRepository } from './meeting.repository.js';
 
-@Schema({ collection: 'meetings', versionKey: false })
+@Schema({ collection: 'meetings', versionKey: false, minimize: false })
 export class MeetingDoc {
   @Prop({ type: String, required: true }) _id!: string;
   @Prop({ type: String, required: true }) transcript!: string;
