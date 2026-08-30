@@ -40,13 +40,20 @@ export class MeetingWorker extends WorkerHost {
     job: Job<MeetingJobData, void, string>,
     err: Error,
   ): Promise<void> {
+    // The producer (MeetingsService.submit) sets attempts: 3; the ?? 1 fallback treats an unconfigured job as single-attempt.
     const attempts = job.opts.attempts ?? 1;
     if (job.attemptsMade < attempts) return; // BullMQ will retry; not final yet
     this.logger.error(
       `✖ ${job.name.padEnd(15)} failed meeting=${job.data.meetingId}: ${err.message}`,
     );
-    await this.repo.patch(job.data.meetingId, {
-      errors: { [job.name as JobKind]: err.message },
-    });
+    try {
+      await this.repo.patch(job.data.meetingId, {
+        errors: { [job.name as JobKind]: err.message },
+      });
+    } catch (e) {
+      this.logger.error(
+        `✖ could not record failure for meeting=${job.data.meetingId}: ${(e as Error).message}`,
+      );
+    }
   }
 }

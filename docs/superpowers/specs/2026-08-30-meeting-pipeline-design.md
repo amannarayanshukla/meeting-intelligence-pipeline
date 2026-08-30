@@ -49,7 +49,7 @@ Non-goals: auth, users, billing, SSE/WebSockets, dead-letter queues, prompt qual
 
 - **Job payload is `{ meetingId }` only.** The worker reloads the transcript from the repo, keeping a 60-minute transcript out of Redis three times over.
 - **`jobId = ${meetingId}-${kind}`** — BullMQ dedupes by jobId, so a re-submitted meeting cannot enqueue twice.
-- **`status` is derived at read time** (`failed` if any `errors[kind]`, `done` if `summary`, `actions`, `vector` all non-null, else `processing`). No "all workers done?" race and no counter to keep in sync.
+- **`status` is derived at read time** (`processing` until every kind has settled (field filled or `errors[kind]` set); then `failed` if any error, else `done`). No "all workers done?" race and no counter to keep in sync.
 - **API and worker share one Nest process.** One Render service. `// ponytail: split into a worker entrypoint when API and worker need independent scaling`.
 
 ## Domain model
@@ -180,7 +180,7 @@ web/
 
 | # | File | Red test | Pins down |
 |---|---|---|---|
-| 1 | `meeting.entity.spec.ts` | `deriveStatus` table: all null → processing; all set → done; any error → failed (even if others set) | status rules |
+| 1 | `meeting.entity.spec.ts` | `deriveStatus` table: all null → processing; all set → done; `processing` until every kind has settled (field filled or `errors[kind]` set); then `failed` if any error, else `done` | status rules |
 | 2 | `in-memory-meeting.repository.spec.ts` | create returns id + nulls; findById unknown → null; patch merges field; patch merges `errors` | Repository contract |
 | 3 | `summarize.processor.spec.ts` etc. | with `FakeLlmClient` returning canned strings: 3 bullets parsed; invalid JSON throws; vector length 768 | each Strategy |
 | 4 | `meetings.service.spec.ts` | `submit` with a `FakeQueue` recording `add` calls: record created, 3 adds with names = JOB_KINDS, jobId `${id}-${kind}`, data `{ meetingId }`; `status(unknown)` → null | Facade + enqueue contract |

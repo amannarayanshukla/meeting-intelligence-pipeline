@@ -66,4 +66,13 @@ describe('MeetingWorker', () => {
     );
     expect((await repo.findById(id))?.errors).toEqual({ summarize: 'dead' });
   });
+
+  it('onFailed on a final attempt for a missing meeting resolves without throwing', async () => {
+    await expect(
+      worker.onFailed(
+        job('summarize', 'ghost', { attemptsMade: 3 }),
+        new Error('dead'),
+      ),
+    ).resolves.toBeUndefined();
+  });
 });

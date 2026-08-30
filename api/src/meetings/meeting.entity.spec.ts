@@ -25,6 +25,16 @@ describe('deriveStatus', () => {
       },
       'failed',
     ],
+    [
+      'one error, others pending',
+      { errors: { vectorize: 'boom' } },
+      'processing',
+    ],
+    [
+      'all settled, one error',
+      { summary: ['a'], actions: [], errors: { vectorize: 'boom' } },
+      'failed',
+    ],
   ])('%s → %s', (_, patch, expected) => {
     expect(deriveStatus({ ...base, ...patch })).toBe(expected);
   });

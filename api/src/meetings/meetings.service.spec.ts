@@ -34,6 +34,8 @@ describe('MeetingsService', () => {
         jobId: `${id}-${call.name}`,
         attempts: 3,
         backoff: { type: 'exponential', delay: 500 },
+        removeOnComplete: { age: 3600 },
+        removeOnFail: { age: 86_400 },
       });
     }
   });

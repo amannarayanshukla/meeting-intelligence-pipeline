@@ -32,9 +32,17 @@ export type MeetingUpdate = MeetingPatch & {
 
 export type MeetingStatus = 'processing' | 'done' | 'failed';
 
+const FIELD_FOR_KIND = {
+  summarize: 'summary',
+  extract_actions: 'actions',
+  vectorize: 'vector',
+} as const satisfies Record<JobKind, keyof Meeting>;
+
 // ponytail: status derived at read time — no counter to keep in sync, no "all done" race.
 export function deriveStatus(m: Meeting): MeetingStatus {
-  if (Object.keys(m.errors).length > 0) return 'failed';
-  if (m.summary && m.actions && m.vector) return 'done';
-  return 'processing';
+  const settled = JOB_KINDS.every(
+    (kind) => m[FIELD_FOR_KIND[kind]] !== null || m.errors[kind] !== undefined,
+  );
+  if (!settled) return 'processing';
+  return Object.keys(m.errors).length > 0 ? 'failed' : 'done';
 }
