@@ -8,6 +8,13 @@ cd "$(dirname "$0")"
 command -v docker >/dev/null || { echo "Docker is required: https://docs.docker.com/get-docker/"; exit 1; }
 docker compose version >/dev/null 2>&1 || { echo "Docker Compose v2 is required (ships with Docker Desktop)."; exit 1; }
 
+# ./demo.sh load [N]  — N concurrent submits (default 100 → 300 jobs) against the running stack.
+# Runs inside the compose network using the api image's Node, so nothing but Docker is needed.
+if [ "${1:-}" = "load" ]; then
+  docker compose ps --status running --services 2>/dev/null | grep -qx api || { echo "stack not running — run ./demo.sh first"; exit 1; }
+  exec docker compose run --rm --no-deps -v "$PWD/scripts:/load:ro" api node /load/load.mjs --n "${2:-100}" --api http://api:3001
+fi
+
 busy() { (command -v lsof >/dev/null && lsof -nP -iTCP:"$1" -sTCP:LISTEN >/dev/null 2>&1) || nc -z localhost "$1" >/dev/null 2>&1; }
 pick() { local p=$1; while busy "$p"; do p=$((p + 1)); done; echo "$p"; }
 
@@ -32,6 +39,8 @@ cat <<MSG
 Demo: click "Load sample" → "Process Pipeline" and watch the three cards land at ~1.5 s / 3 s / 4.5 s.
 Split-screen the worker logs to see the three jobs start in the same second:
        docker compose logs -f api | grep -E '▶|✔'
+Load test (100 concurrent submits, 300 jobs; ~5 min at the default WORKER_CONCURRENCY=3):
+       ./demo.sh load            # or: WORKER_CONCURRENCY=30 ./demo.sh && ./demo.sh load  → ~30 s
 Stop everything:
        docker compose down
 MSG

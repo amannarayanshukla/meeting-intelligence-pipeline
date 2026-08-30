@@ -2,11 +2,16 @@
 
 Drop a meeting transcript into a BullMQ queue; three workers independently produce a summary, action items, and a vector embedding; the UI polls and reveals each result as it lands.
 
-## Quick start — one command
+## Quick start — for the interviewer
 
-    git clone https://github.com/amannarayanshukla/meeting-intelligence-pipeline && cd meeting-intelligence-pipeline && ./demo.sh
+Everything below needs only Docker Desktop (and `git`). Each line is one command.
 
-Needs Docker Desktop. Builds four containers, picks free ports, opens the UI. Click **Load sample → Process Pipeline** and watch the three cards land at 1.5 / 3 / 4.5 s.
+    git clone https://github.com/amannarayanshukla/meeting-intelligence-pipeline && cd meeting-intelligence-pipeline
+    ./demo.sh                          # builds 4 containers, picks free ports, opens the UI → click "Load sample" → "Process Pipeline"
+    docker compose logs -f api | grep -E '▶|✔'   # (2nd terminal) watch the three jobs start in the same second and finish at 1.5 / 3 / 4.5 s
+    ./demo.sh load                     # 100 concurrent submits (300 jobs): API accepts all in ~200 ms, queue drains in ~5 min at WORKER_CONCURRENCY=3
+    WORKER_CONCURRENCY=30 ./demo.sh && ./demo.sh load   # same burst, 10× the workers → drains in ~30 s. That's the bottleneck, and the knob.
+    docker compose down                # stop everything
 
 ![Demo: three cards landing in parallel](docs/demo.gif)
 
@@ -92,7 +97,7 @@ Wall clock is max(1.5, 3, 4.5) s, not the 9 s sum.
 
 ## What breaks first (load test)
 
-`node scripts/load.mjs --n 100 --api http://localhost:3001` fires 100 concurrent submits (300 jobs), then polls every second until all settle. Two runs on a laptop against the Docker stack, mock LLM delays 1.5 / 3 / 4.5 s:
+`./demo.sh load` (or `node scripts/load.mjs --n 100 --api http://localhost:3001`) fires 100 concurrent submits (300 jobs), then polls every second until all settle. Two runs on a laptop against the Docker stack, mock LLM delays 1.5 / 3 / 4.5 s:
 
 | `WORKER_CONCURRENCY` | 100 POSTs accepted in | POST p50 / p95 | 300 jobs drained in | jobs/s | status GETs while draining |
 |---|---|---|---|---|---|
@@ -102,6 +107,19 @@ Wall clock is max(1.5, 3, 4.5) s, not the 9 s sum.
 - **The request path doesn't care.** Both bursts are fully accepted in ~200–270 ms; the queue absorbs the work. A blocking design would have held 100 connections open for 4.5 s each.
 - **The bottleneck is worker concurrency, and it's a knob.** 10× the concurrency drained 9× faster (ceiling is `concurrency / avg job time` = 1.0 and 10 jobs/s). Past one process, scale by adding worker processes — the API and worker are already separable (`// ponytail:` in `meetings.module.ts`).
 - **Polling is the next cost.** 100 open dashboards ≈ 50 status GETs/s on MongoDB regardless of the knob — that is the number behind the `// ponytail: SSE when poll traffic matters` comment in `useMeetingStatus.ts`.
+
+<details>
+<summary>Raw output of the two runs</summary>
+
+    $ WORKER_CONCURRENCY=3  ./demo.sh && ./demo.sh load
+    submit  100 concurrent POSTs in 197 ms — p50 125.9 ms · p95 170.9 ms · max 173.2 ms
+    drain   300 jobs in 303.2 s → 0.99 jobs/s · 14881 status GETs (49.1/s) · failed 0
+
+    $ WORKER_CONCURRENCY=30 ./demo.sh && ./demo.sh load
+    submit  100 concurrent POSTs in 272 ms — p50 177.4 ms · p95 244.6 ms · max 247.3 ms
+    drain   300 jobs in 33.2 s → 9.04 jobs/s · 1754 status GETs (52.9/s) · failed 0
+
+</details>
 
 Numbers are synthetic (fixed mock delays) — the shape is the point, not the magnitude. Run it locally only: against a free-tier hosted Redis, 300 jobs of BullMQ polling eats a visible slice of the monthly command quota.
 
