@@ -681,7 +681,7 @@ export class VectorizeProcessor implements TranscriptProcessor {
 - [ ] **Step 5: Run tests to verify they pass**
 
 Run: `cd api && npx vitest run src/meetings/processors`
-Expected: PASS (9 tests)
+Expected: PASS (10 tests)
 
 - [ ] **Step 6: Commit**
 
@@ -1152,7 +1152,7 @@ Expected: PASS (5 tests)
 - [ ] **Step 5: Run the whole api suite**
 
 Run: `cd api && npm test`
-Expected: PASS — 29 unit tests across 6 suites
+Expected: PASS — 30 unit tests across 6 suites
 
 - [ ] **Step 6: Commit**
 
@@ -1360,7 +1360,7 @@ services:
 - [ ] **Step 4: Build and confirm unit tests still pass**
 
 Run: `cd api && npm run build && npm test`
-Expected: build succeeds with no TS errors; 29 tests PASS
+Expected: build succeeds with no TS errors; 30 tests PASS
 
 - [ ] **Step 5: Start local infra and the server**
 
