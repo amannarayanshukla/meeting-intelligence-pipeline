@@ -90,6 +90,21 @@ A real run against a live worker, three jobs enqueued for one meeting:
 
 Wall clock is max(1.5, 3, 4.5) s, not the 9 s sum.
 
+## What breaks first (load test)
+
+`node scripts/load.mjs --n 100 --api http://localhost:3001` fires 100 concurrent submits (300 jobs), then polls every second until all settle. Two runs on a laptop against the Docker stack, mock LLM delays 1.5 / 3 / 4.5 s:
+
+| `WORKER_CONCURRENCY` | 100 POSTs accepted in | POST p50 / p95 | 300 jobs drained in | jobs/s | status GETs while draining |
+|---|---|---|---|---|---|
+| 3 (default) | 197 ms | 126 / 171 ms | **303 s** | 0.99 | 49 /s |
+| 30 | 272 ms | 177 / 245 ms | **33 s** | 9.04 | 53 /s |
+
+- **The request path doesn't care.** Both bursts are fully accepted in ~200–270 ms; the queue absorbs the work. A blocking design would have held 100 connections open for 4.5 s each.
+- **The bottleneck is worker concurrency, and it's a knob.** 10× the concurrency drained 9× faster (ceiling is `concurrency / avg job time` = 1.0 and 10 jobs/s). Past one process, scale by adding worker processes — the API and worker are already separable (`// ponytail:` in `meetings.module.ts`).
+- **Polling is the next cost.** 100 open dashboards ≈ 50 status GETs/s on MongoDB regardless of the knob — that is the number behind the `// ponytail: SSE when poll traffic matters` comment in `useMeetingStatus.ts`.
+
+Numbers are synthetic (fixed mock delays) — the shape is the point, not the magnitude. Run it locally only: against a free-tier hosted Redis, 300 jobs of BullMQ polling eats a visible slice of the monthly command quota.
+
 ## Deploy
 
 **One-click:** [Deploy the API + Redis to Render](https://render.com/deploy?repo=https://github.com/amannarayanshukla/meeting-intelligence-pipeline) (uses `render.yaml`; you'll be prompted for `MONGO_URL` — create a free M0 cluster at [MongoDB Atlas](https://www.mongodb.com/atlas), allow `0.0.0.0/0`, and paste the `mongodb+srv://…/meetings` string). Then [deploy the UI to Vercel](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Famannarayanshukla%2Fmeeting-intelligence-pipeline&root-directory=web&env=NEXT_PUBLIC_API_URL&envDescription=Base%20URL%20of%20the%20Render%20API%20service&project-name=meeting-intelligence-pipeline) and set `NEXT_PUBLIC_API_URL` to the Render URL. Finally set `CORS_ORIGIN` on Render to the Vercel domain.

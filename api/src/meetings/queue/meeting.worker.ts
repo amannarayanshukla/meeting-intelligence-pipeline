@@ -9,7 +9,8 @@ import {
 import { MeetingRepository } from '../repository/meeting.repository.js';
 
 // ponytail: one queue, one worker, concurrency 3. Split into per-kind queues when one kind needs its own retry/concurrency policy.
-@Processor(MEETINGS_QUEUE, { concurrency: 3 })
+// WORKER_CONCURRENCY is the throughput knob: jobs processed at once by this process (see README "What breaks first").
+@Processor(MEETINGS_QUEUE, { concurrency: Number(process.env.WORKER_CONCURRENCY ?? 3) })
 export class MeetingWorker extends WorkerHost {
   private readonly logger = new Logger(MeetingWorker.name);
   private readonly byKind: Map<JobKind, TranscriptProcessor>;

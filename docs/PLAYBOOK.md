@@ -45,3 +45,8 @@ Left: the UI. Right: `docker compose logs -f api | grep -E '▶|✔'` (or the Re
 1. `api/src/llm/gemini-llm.client.ts`: `export class GeminiLlmClient extends LlmClient` implementing `complete(prompt)` (text) and `embed(text)` (`text-embedding-004`).
 2. `api/src/llm/llm.module.ts`: `{ provide: LlmClient, useFactory: () => process.env.GEMINI_API_KEY ? new GeminiLlmClient(process.env.GEMINI_API_KEY) : new MockLlmClient() }`.
 3. Remove the mock badge in `web/src/app/page.tsx`. Nothing else changes — processors and the worker only know `LlmClient`.
+
+## 8. Load test
+    WORKER_CONCURRENCY=30 docker compose up --build -d api      # or leave the default 3
+    node scripts/load.mjs --n 100 --api http://localhost:<API_PORT>
+Prints POST p50/p95, drain time, jobs/s and the status-GET rate. Results and what they mean: README §"What breaks first". Local only — don't point it at a free-tier hosted Redis.
