@@ -1,0 +1,26 @@
+# Render Blueprint — API + worker (one Node process) and a free Key Value (Redis) instance.
+# MongoDB Atlas is not a Render product: you will be prompted for MONGO_URL on first deploy.
+services:
+  - type: web
+    name: meeting-pipeline-api
+    runtime: node
+    plan: free
+    rootDir: api
+    # NODE_ENV=production makes plain `npm ci` skip the devDependencies that `nest build` needs.
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: npm run start:prod
+    envVars:
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: meeting-pipeline-redis
+          property: connectionString
+      - key: MONGO_URL
+        sync: false
+      - key: CORS_ORIGIN
+        value: "*" # tighten to your Vercel domain after the first deploy
+  - type: keyvalue
+    name: meeting-pipeline-redis
+    plan: free
+    ipAllowList: [] # internal access only
+    maxmemoryPolicy: noeviction # BullMQ requires noeviction

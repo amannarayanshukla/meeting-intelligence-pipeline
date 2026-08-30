@@ -74,6 +74,10 @@ Wall clock is max(1.5, 3, 4.5) s, not the 9 s sum.
 
 ## Deploy
 
+**One-click:** [Deploy the API + Redis to Render](https://render.com/deploy?repo=https://github.com/amannarayanshukla/meeting-intelligence-pipeline) (uses `render.yaml`; you'll be prompted for `MONGO_URL` — create a free M0 cluster at [MongoDB Atlas](https://www.mongodb.com/atlas), allow `0.0.0.0/0`, and paste the `mongodb+srv://…/meetings` string). Then [deploy the UI to Vercel](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Famannarayanshukla%2Fmeeting-intelligence-pipeline&root-directory=web&env=NEXT_PUBLIC_API_URL&envDescription=Base%20URL%20of%20the%20Render%20API%20service&project-name=meeting-intelligence-pipeline) and set `NEXT_PUBLIC_API_URL` to the Render URL. Finally set `CORS_ORIGIN` on Render to the Vercel domain.
+
+Manual settings, if you prefer the dashboards:
+
 **Render (`api`)**
 
 - Root directory: `api`
