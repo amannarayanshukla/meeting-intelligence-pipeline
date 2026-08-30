@@ -6,7 +6,7 @@
 
 **Architecture:** NestJS API + BullMQ worker in one process. Strategy pattern for the three processors, Repository pattern for storage (InMemory for tests, Mongo for deploy), Adapter pattern for the LLM (Mock only). Status is derived at read time from which fields are filled.
 
-**Tech Stack:** NestJS 11, `@nestjs/bullmq` + `bullmq` + `ioredis`, `@nestjs/mongoose` + `mongoose`, `class-validator`, Jest + supertest (api). Next.js 15 (App Router) + Tailwind + shadcn/ui, Vitest + React Testing Library (web).
+**Tech Stack:** NestJS 12 (ESM, nodenext), `@nestjs/bullmq` + `bullmq` + `ioredis`, `@nestjs/mongoose` + `mongoose`, `class-validator`, Vitest + supertest (api). Next.js 15 (App Router) + Tailwind + shadcn/ui, Vitest + React Testing Library (web).
 
 **Spec:** `docs/superpowers/specs/2026-08-30-meeting-pipeline-design.md`
 
@@ -21,6 +21,9 @@
 - Mock vector has **768** floats; the GET DTO returns `{ dims, preview: first 8 }`.
 - Mock delays: `summarize` 1500 ms, `extract_actions` 3000 ms, `embed` 4500 ms (tests pass 0).
 - Frontend polls every **1500 ms** and stops on `done` or `failed`.
+- `api/` is ESM (`"type": "module"`, `module: nodenext`): every relative import inside `api/src` and `api/test` ends in `.js` (e.g. `from './meeting.entity.js'`). `web/` imports stay extensionless.
+- `api/` tests run on Vitest (`globals: true`, so `describe/it/expect/vi` need no import). Unit: `npx vitest run <path>`; e2e: `npm run test:e2e` (picks up `test/**/*.e2e-spec.ts`).
+- `api/tsconfig.build.json` keeps the scaffold's `compilerOptions.rootDir: "./src"` and `include: ["src"]` so `nest build` emits `dist/main.js` (Render runs `node dist/main`).
 - Every deliberate simplification gets a `// ponytail:` comment naming the ceiling.
 - Commit after every task with the trailer:
   ```
@@ -94,6 +97,8 @@ Edit `api/tsconfig.build.json` so test doubles are not compiled:
 ```json
 {
   "extends": "./tsconfig.json",
+  "compilerOptions": { "rootDir": "./src" },
+  "include": ["src"],
   "exclude": ["node_modules", "test", "dist", "**/*spec.ts", "src/testing"]
 }
 ```
@@ -103,7 +108,7 @@ Edit `api/tsconfig.build.json` so test doubles are not compiled:
 `api/src/meetings/meeting.entity.spec.ts`:
 
 ```ts
-import { deriveStatus, Meeting } from './meeting.entity';
+import { deriveStatus, Meeting } from './meeting.entity.js';
 
 const base: Meeting = {
   id: 'm1',
@@ -129,7 +134,7 @@ describe('deriveStatus', () => {
 
 - [ ] **Step 3: Run test to verify it fails**
 
-Run: `cd api && npx jest src/meetings/meeting.entity.spec.ts`
+Run: `cd api && npx vitest run src/meetings/meeting.entity.spec.ts`
 Expected: FAIL — `Cannot find module './meeting.entity'`
 
 - [ ] **Step 4: Write the entity**
@@ -177,7 +182,7 @@ export function deriveStatus(m: Meeting): MeetingStatus {
 
 - [ ] **Step 5: Run test to verify it passes**
 
-Run: `cd api && npx jest src/meetings/meeting.entity.spec.ts`
+Run: `cd api && npx vitest run src/meetings/meeting.entity.spec.ts`
 Expected: PASS (4 tests)
 
 - [ ] **Step 6: Commit**
@@ -205,7 +210,7 @@ git commit -m "feat(api): scaffold NestJS app and meeting entity with derived st
 `api/src/meetings/repository/in-memory-meeting.repository.spec.ts`:
 
 ```ts
-import { InMemoryMeetingRepository } from './in-memory-meeting.repository';
+import { InMemoryMeetingRepository } from './in-memory-meeting.repository.js';
 
 describe('InMemoryMeetingRepository', () => {
   let repo: InMemoryMeetingRepository;
@@ -249,7 +254,7 @@ describe('InMemoryMeetingRepository', () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd api && npx jest src/meetings/repository`
+Run: `cd api && npx vitest run src/meetings/repository`
 Expected: FAIL — `Cannot find module './in-memory-meeting.repository'`
 
 - [ ] **Step 3: Write the abstract class and in-memory implementation**
@@ -257,7 +262,7 @@ Expected: FAIL — `Cannot find module './in-memory-meeting.repository'`
 `api/src/meetings/repository/meeting.repository.ts`:
 
 ```ts
-import { Meeting, MeetingUpdate } from '../meeting.entity';
+import { Meeting, MeetingUpdate } from '../meeting.entity.js';
 
 /** Abstract class (not interface) so it doubles as the Nest DI token. */
 export abstract class MeetingRepository {
@@ -272,8 +277,8 @@ export abstract class MeetingRepository {
 ```ts
 import { Injectable } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
-import { Meeting, MeetingUpdate } from '../meeting.entity';
-import { MeetingRepository } from './meeting.repository';
+import { Meeting, MeetingUpdate } from '../meeting.entity.js';
+import { MeetingRepository } from './meeting.repository.js';
 
 @Injectable()
 export class InMemoryMeetingRepository extends MeetingRepository {
@@ -309,7 +314,7 @@ export class InMemoryMeetingRepository extends MeetingRepository {
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `cd api && npx jest src/meetings/repository`
+Run: `cd api && npx vitest run src/meetings/repository`
 Expected: PASS (5 tests)
 
 - [ ] **Step 5: Commit**
@@ -335,7 +340,7 @@ git commit -m "feat(api): MeetingRepository abstraction with in-memory implement
 `api/src/llm/mock-llm.client.spec.ts`:
 
 ```ts
-import { MockLlmClient } from './mock-llm.client';
+import { MockLlmClient } from './mock-llm.client.js';
 
 const instant = new MockLlmClient({ complete: () => 0, embed: 0 });
 
@@ -371,7 +376,7 @@ describe('MockLlmClient', () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd api && npx jest src/llm`
+Run: `cd api && npx vitest run src/llm`
 Expected: FAIL — `Cannot find module './mock-llm.client'`
 
 - [ ] **Step 3: Write the adapter, mock, and module**
@@ -390,7 +395,7 @@ export abstract class LlmClient {
 
 ```ts
 import { setTimeout as sleep } from 'node:timers/promises';
-import { LlmClient } from './llm.client';
+import { LlmClient } from './llm.client.js';
 
 export interface MockDelays {
   complete: (prompt: string) => number;
@@ -438,8 +443,8 @@ export class MockLlmClient extends LlmClient {
 
 ```ts
 import { Module } from '@nestjs/common';
-import { LlmClient } from './llm.client';
-import { MockLlmClient } from './mock-llm.client';
+import { LlmClient } from './llm.client.js';
+import { MockLlmClient } from './mock-llm.client.js';
 
 @Module({
   providers: [{ provide: LlmClient, useFactory: () => new MockLlmClient() }],
@@ -450,7 +455,7 @@ export class LlmModule {}
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `cd api && npx jest src/llm`
+Run: `cd api && npx vitest run src/llm`
 Expected: PASS (4 tests)
 
 - [ ] **Step 5: Commit**
@@ -477,7 +482,7 @@ git commit -m "feat(api): LlmClient adapter with staggered MockLlmClient"
 `api/src/testing/fake-llm.client.ts`:
 
 ```ts
-import { LlmClient } from '../llm/llm.client';
+import { LlmClient } from '../llm/llm.client.js';
 
 export class FakeLlmClient extends LlmClient {
   constructor(
@@ -500,10 +505,10 @@ export class FakeLlmClient extends LlmClient {
 `api/src/meetings/processors/processors.spec.ts`:
 
 ```ts
-import { FakeLlmClient } from '../../testing/fake-llm.client';
-import { ActionExtractorProcessor } from './action-extractor.processor';
-import { SummarizeProcessor } from './summarize.processor';
-import { VectorizeProcessor } from './vectorize.processor';
+import { FakeLlmClient } from '../../testing/fake-llm.client.js';
+import { ActionExtractorProcessor } from './action-extractor.processor.js';
+import { SummarizeProcessor } from './summarize.processor.js';
+import { VectorizeProcessor } from './vectorize.processor.js';
 
 describe('SummarizeProcessor', () => {
   it('has kind summarize', () => {
@@ -561,7 +566,7 @@ describe('VectorizeProcessor', () => {
 
 - [ ] **Step 3: Run tests to verify they fail**
 
-Run: `cd api && npx jest src/meetings/processors`
+Run: `cd api && npx vitest run src/meetings/processors`
 Expected: FAIL — `Cannot find module './summarize.processor'`
 
 - [ ] **Step 4: Write the interface and three processors**
@@ -569,7 +574,7 @@ Expected: FAIL — `Cannot find module './summarize.processor'`
 `api/src/meetings/processors/transcript.processor.ts`:
 
 ```ts
-import { JobKind, MeetingPatch } from '../meeting.entity';
+import { JobKind, MeetingPatch } from '../meeting.entity.js';
 
 /** Strategy: one implementation per JobKind. The worker picks by job.name. */
 export interface TranscriptProcessor {
@@ -585,9 +590,9 @@ export const PROCESSORS = Symbol('PROCESSORS');
 
 ```ts
 import { Injectable } from '@nestjs/common';
-import { LlmClient } from '../../llm/llm.client';
-import { MeetingPatch } from '../meeting.entity';
-import { TranscriptProcessor } from './transcript.processor';
+import { LlmClient } from '../../llm/llm.client.js';
+import { MeetingPatch } from '../meeting.entity.js';
+import { TranscriptProcessor } from './transcript.processor.js';
 
 @Injectable()
 export class SummarizeProcessor implements TranscriptProcessor {
@@ -614,9 +619,9 @@ export class SummarizeProcessor implements TranscriptProcessor {
 
 ```ts
 import { Injectable } from '@nestjs/common';
-import { LlmClient } from '../../llm/llm.client';
-import { ActionItem, MeetingPatch } from '../meeting.entity';
-import { TranscriptProcessor } from './transcript.processor';
+import { LlmClient } from '../../llm/llm.client.js';
+import { ActionItem, MeetingPatch } from '../meeting.entity.js';
+import { TranscriptProcessor } from './transcript.processor.js';
 
 function isActionItem(x: unknown): x is ActionItem {
   return (
@@ -655,9 +660,9 @@ export class ActionExtractorProcessor implements TranscriptProcessor {
 
 ```ts
 import { Injectable } from '@nestjs/common';
-import { LlmClient } from '../../llm/llm.client';
-import { MeetingPatch } from '../meeting.entity';
-import { TranscriptProcessor } from './transcript.processor';
+import { LlmClient } from '../../llm/llm.client.js';
+import { MeetingPatch } from '../meeting.entity.js';
+import { TranscriptProcessor } from './transcript.processor.js';
 
 @Injectable()
 export class VectorizeProcessor implements TranscriptProcessor {
@@ -675,7 +680,7 @@ export class VectorizeProcessor implements TranscriptProcessor {
 
 - [ ] **Step 5: Run tests to verify they pass**
 
-Run: `cd api && npx jest src/meetings/processors`
+Run: `cd api && npx vitest run src/meetings/processors`
 Expected: PASS (9 tests)
 
 - [ ] **Step 6: Commit**
@@ -724,9 +729,9 @@ export class FakeQueue {
 
 ```ts
 import { Queue } from 'bullmq';
-import { FakeQueue } from '../testing/fake-queue';
-import { MeetingsService } from './meetings.service';
-import { InMemoryMeetingRepository } from './repository/in-memory-meeting.repository';
+import { FakeQueue } from '../testing/fake-queue.js';
+import { MeetingsService } from './meetings.service.js';
+import { InMemoryMeetingRepository } from './repository/in-memory-meeting.repository.js';
 
 describe('MeetingsService', () => {
   let repo: InMemoryMeetingRepository;
@@ -782,7 +787,7 @@ describe('MeetingsService', () => {
 
 - [ ] **Step 3: Run test to verify it fails**
 
-Run: `cd api && npx jest src/meetings/meetings.service.spec.ts`
+Run: `cd api && npx vitest run src/meetings/meetings.service.spec.ts`
 Expected: FAIL — `Cannot find module './meetings.service'`
 
 - [ ] **Step 4: Write the DTO mapper and service**
@@ -790,7 +795,7 @@ Expected: FAIL — `Cannot find module './meetings.service'`
 `api/src/meetings/dto/meeting-status.dto.ts`:
 
 ```ts
-import { ActionItem, deriveStatus, JobKind, Meeting, MeetingStatus } from '../meeting.entity';
+import { ActionItem, deriveStatus, JobKind, Meeting, MeetingStatus } from '../meeting.entity.js';
 
 export interface MeetingStatusDto {
   id: string;
@@ -821,9 +826,9 @@ export function toStatusDto(m: Meeting): MeetingStatusDto {
 import { InjectQueue } from '@nestjs/bullmq';
 import { Injectable } from '@nestjs/common';
 import { Queue } from 'bullmq';
-import { MeetingStatusDto, toStatusDto } from './dto/meeting-status.dto';
-import { JOB_KINDS, JobKind, MEETINGS_QUEUE, MeetingJobData } from './meeting.entity';
-import { MeetingRepository } from './repository/meeting.repository';
+import { MeetingStatusDto, toStatusDto } from './dto/meeting-status.dto.js';
+import { JOB_KINDS, JobKind, MEETINGS_QUEUE, MeetingJobData } from './meeting.entity.js';
+import { MeetingRepository } from './repository/meeting.repository.js';
 
 @Injectable()
 export class MeetingsService {
@@ -856,7 +861,7 @@ export class MeetingsService {
 
 - [ ] **Step 5: Run test to verify it passes**
 
-Run: `cd api && npx jest src/meetings/meetings.service.spec.ts`
+Run: `cd api && npx vitest run src/meetings/meetings.service.spec.ts`
 Expected: PASS (3 tests)
 
 - [ ] **Step 6: Commit**
@@ -884,14 +889,14 @@ git commit -m "feat(api): MeetingsService facade enqueues three jobs; status DTO
 
 ```ts
 import { Job } from 'bullmq';
-import { MeetingJobData } from '../meeting.entity';
-import { TranscriptProcessor } from '../processors/transcript.processor';
-import { InMemoryMeetingRepository } from '../repository/in-memory-meeting.repository';
-import { MeetingWorker } from './meeting.worker';
+import { MeetingJobData } from '../meeting.entity.js';
+import { TranscriptProcessor } from '../processors/transcript.processor.js';
+import { InMemoryMeetingRepository } from '../repository/in-memory-meeting.repository.js';
+import { MeetingWorker } from './meeting.worker.js';
 
 const summarize: TranscriptProcessor = {
   kind: 'summarize',
-  process: jest.fn(async (t: string) => ({ summary: [`sum of ${t}`] })),
+  process: vi.fn(async (t: string) => ({ summary: [`sum of ${t}`] })),
 };
 
 function job(name: string, meetingId: string, extra: Partial<Job> = {}): Job<MeetingJobData, void, string> {
@@ -940,7 +945,7 @@ describe('MeetingWorker', () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd api && npx jest src/meetings/queue`
+Run: `cd api && npx vitest run src/meetings/queue`
 Expected: FAIL — `Cannot find module './meeting.worker'`
 
 - [ ] **Step 3: Write the worker**
@@ -951,9 +956,9 @@ Expected: FAIL — `Cannot find module './meeting.worker'`
 import { OnWorkerEvent, Processor, WorkerHost } from '@nestjs/bullmq';
 import { Inject, Logger } from '@nestjs/common';
 import { Job } from 'bullmq';
-import { JobKind, MEETINGS_QUEUE, MeetingJobData } from '../meeting.entity';
-import { PROCESSORS, TranscriptProcessor } from '../processors/transcript.processor';
-import { MeetingRepository } from '../repository/meeting.repository';
+import { JobKind, MEETINGS_QUEUE, MeetingJobData } from '../meeting.entity.js';
+import { PROCESSORS, TranscriptProcessor } from '../processors/transcript.processor.js';
+import { MeetingRepository } from '../repository/meeting.repository.js';
 
 // ponytail: one queue, one worker, concurrency 3. Split into per-kind queues when one kind needs its own retry/concurrency policy.
 @Processor(MEETINGS_QUEUE, { concurrency: 3 })
@@ -994,7 +999,7 @@ export class MeetingWorker extends WorkerHost {
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `cd api && npx jest src/meetings/queue`
+Run: `cd api && npx vitest run src/meetings/queue`
 Expected: PASS (4 tests)
 
 - [ ] **Step 5: Commit**
@@ -1018,19 +1023,19 @@ git commit -m "feat(api): MeetingWorker dispatches by job name and records final
 
 - [ ] **Step 1: Write the failing e2e test**
 
-`api/test/meetings.e2e-spec.ts` (if `import request from 'supertest'` fails to compile, use `import * as request from 'supertest'`):
+`api/test/meetings.e2e-spec.ts` (ESM + `esModuleInterop`: `import request from 'supertest'` is correct):
 
 ```ts
 import { getQueueToken } from '@nestjs/bullmq';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
-import { MEETINGS_QUEUE } from '../src/meetings/meeting.entity';
-import { MeetingsController } from '../src/meetings/meetings.controller';
-import { MeetingsService } from '../src/meetings/meetings.service';
-import { InMemoryMeetingRepository } from '../src/meetings/repository/in-memory-meeting.repository';
-import { MeetingRepository } from '../src/meetings/repository/meeting.repository';
-import { FakeQueue } from '../src/testing/fake-queue';
+import { MEETINGS_QUEUE } from '../src/meetings/meeting.entity.js';
+import { MeetingsController } from '../src/meetings/meetings.controller.js';
+import { MeetingsService } from '../src/meetings/meetings.service.js';
+import { InMemoryMeetingRepository } from '../src/meetings/repository/in-memory-meeting.repository.js';
+import { MeetingRepository } from '../src/meetings/repository/meeting.repository.js';
+import { FakeQueue } from '../src/testing/fake-queue.js';
 
 describe('Meetings API', () => {
   let app: INestApplication;
@@ -1116,9 +1121,9 @@ export class CreateMeetingDto {
 
 ```ts
 import { Body, Controller, Get, HttpCode, NotFoundException, Param, Post } from '@nestjs/common';
-import { CreateMeetingDto } from './dto/create-meeting.dto';
-import { MeetingStatusDto } from './dto/meeting-status.dto';
-import { MeetingsService } from './meetings.service';
+import { CreateMeetingDto } from './dto/create-meeting.dto.js';
+import { MeetingStatusDto } from './dto/meeting-status.dto.js';
+import { MeetingsService } from './meetings.service.js';
 
 @Controller('meetings')
 export class MeetingsController {
@@ -1177,8 +1182,8 @@ import { Injectable } from '@nestjs/common';
 import { InjectModel, Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Model, SchemaTypes } from 'mongoose';
 import { randomUUID } from 'node:crypto';
-import { ActionItem, JobKind, Meeting, MeetingUpdate } from '../meeting.entity';
-import { MeetingRepository } from './meeting.repository';
+import { ActionItem, JobKind, Meeting, MeetingUpdate } from '../meeting.entity.js';
+import { MeetingRepository } from './meeting.repository.js';
 
 @Schema({ collection: 'meetings', versionKey: false })
 export class MeetingDoc {
@@ -1246,17 +1251,17 @@ export class MongoMeetingRepository extends MeetingRepository {
 import { BullModule } from '@nestjs/bullmq';
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
-import { LlmModule } from '../llm/llm.module';
-import { MEETINGS_QUEUE } from './meeting.entity';
-import { MeetingsController } from './meetings.controller';
-import { MeetingsService } from './meetings.service';
-import { ActionExtractorProcessor } from './processors/action-extractor.processor';
-import { SummarizeProcessor } from './processors/summarize.processor';
-import { PROCESSORS, TranscriptProcessor } from './processors/transcript.processor';
-import { VectorizeProcessor } from './processors/vectorize.processor';
-import { MeetingWorker } from './queue/meeting.worker';
-import { MeetingRepository } from './repository/meeting.repository';
-import { MeetingDoc, MeetingSchema, MongoMeetingRepository } from './repository/mongo-meeting.repository';
+import { LlmModule } from '../llm/llm.module.js';
+import { MEETINGS_QUEUE } from './meeting.entity.js';
+import { MeetingsController } from './meetings.controller.js';
+import { MeetingsService } from './meetings.service.js';
+import { ActionExtractorProcessor } from './processors/action-extractor.processor.js';
+import { SummarizeProcessor } from './processors/summarize.processor.js';
+import { PROCESSORS, TranscriptProcessor } from './processors/transcript.processor.js';
+import { VectorizeProcessor } from './processors/vectorize.processor.js';
+import { MeetingWorker } from './queue/meeting.worker.js';
+import { MeetingRepository } from './repository/meeting.repository.js';
+import { MeetingDoc, MeetingSchema, MongoMeetingRepository } from './repository/mongo-meeting.repository.js';
 
 @Module({
   imports: [
@@ -1292,7 +1297,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
 import IORedis from 'ioredis';
-import { MeetingsModule } from './meetings/meetings.module';
+import { MeetingsModule } from './meetings/meetings.module.js';
 
 @Module({
   imports: [
@@ -1319,7 +1324,7 @@ export class AppModule {}
 ```ts
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
-import { AppModule } from './app.module';
+import { AppModule } from './app.module.js';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);

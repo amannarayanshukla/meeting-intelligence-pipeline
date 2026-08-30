@@ -10,14 +10,14 @@ Non-goals: auth, users, billing, SSE/WebSockets, dead-letter queues, prompt qual
 
 | Decision | Choice | Why |
 |---|---|---|
-| Backend | NestJS + `@nestjs/bullmq` | DI, modules, and a BullMQ wrapper out of the box |
+| Backend | NestJS 12 (ESM/nodenext) + `@nestjs/bullmq` | DI, modules, and a BullMQ wrapper out of the box |
 | Queue | BullMQ on Redis, one queue `meetings` | Matches the brief; per-queue tuning not needed yet |
 | Storage | `MeetingRepository` → InMemory (tests/local) + Mongo (deploy) | Two real implementations; Mongo is Fireflies' stack |
 | LLM | `LlmClient` → `MockLlmClient` only | No API key. Mock has per-kind delays so cards land staggered |
 | Frontend | Next.js (App Router) + Tailwind + shadcn/ui, dark mode | Brief |
 | Transport | Polling `GET /api/meetings/:id` every 1.5 s | Brief; simplest |
 | Layout | Two plain folders `api/`, `web/`; DTO type duplicated | No workspace tooling |
-| Tests | Jest (Nest default) in `api/`, Vitest + RTL in `web/` | Already-installed / lightest |
+| Tests | Vitest in both `api/` (Nest 12 scaffolds it) and `web/` | Already-installed / lightest |
 | Deploy | Render (api + worker, one process), Upstash Redis, Mongo Atlas, Vercel (web) | Workers cannot run on serverless |
 
 ## Architecture
