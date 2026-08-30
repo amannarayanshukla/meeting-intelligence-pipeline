@@ -6,9 +6,13 @@ export interface MockDelays {
   embed: number;
 }
 
+/** Only the instruction header (text before the first blank line) decides the reply — never the transcript. */
+const wantsJson = (prompt: string): boolean =>
+  prompt.split('\n\n')[0].includes('JSON');
+
 // Staggered on purpose: the demo's "cards land one after another" comes from here.
 export const DEFAULT_DELAYS: MockDelays = {
-  complete: (prompt) => (prompt.includes('JSON') ? 3000 : 1500),
+  complete: (prompt) => (wantsJson(prompt) ? 3000 : 1500),
   embed: 4500,
 };
 
@@ -32,7 +36,7 @@ export class MockLlmClient extends LlmClient {
 
   async complete(prompt: string): Promise<string> {
     await sleep(this.delays.complete(prompt));
-    return prompt.includes('JSON') ? ACTIONS : SUMMARY;
+    return wantsJson(prompt) ? ACTIONS : SUMMARY;
   }
 
   async embed(text: string): Promise<number[]> {

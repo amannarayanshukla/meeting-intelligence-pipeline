@@ -1,4 +1,4 @@
-import { MockLlmClient } from './mock-llm.client.js';
+import { DEFAULT_DELAYS, MockLlmClient } from './mock-llm.client.js';
 
 const instant = new MockLlmClient({ complete: () => 0, embed: 0 });
 
@@ -35,5 +35,23 @@ describe('MockLlmClient', () => {
     const t0 = Date.now();
     await slow.complete('x');
     expect(Date.now() - t0).toBeGreaterThanOrEqual(25);
+  });
+
+  it('ignores the word JSON inside the transcript when choosing the reply', async () => {
+    const out = await instant.complete(
+      'Summarize this meeting in 3 bullet points.\n\nPriya: the extractor must return strict JSON.',
+    );
+    expect(out.split('\n').filter((l) => l.startsWith('- '))).toHaveLength(3);
+  });
+
+  it('ignores the word JSON inside the transcript when choosing the delay', () => {
+    expect(
+      DEFAULT_DELAYS.complete(
+        'Summarize this meeting in 3 bullet points.\n\nwe need strict JSON',
+      ),
+    ).toBe(1500);
+    expect(
+      DEFAULT_DELAYS.complete('Reply with ONLY a JSON array.\n\nhello'),
+    ).toBe(3000);
   });
 });

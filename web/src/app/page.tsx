@@ -32,7 +32,7 @@ export default function Home() {
   }
 
   return (
-    <main className="mx-auto max-w-6xl space-y-6 p-8">
+    <main className="mx-auto w-full max-w-6xl space-y-6 p-8">
       <header className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Meeting Intelligence Pipeline</h1>
