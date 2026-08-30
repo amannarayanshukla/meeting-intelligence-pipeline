@@ -22,7 +22,12 @@ Ports busy? `PORT=3002 npm run start:dev` for the API and `npm run dev -- -p 300
 No Redis/Mongo needed for tests. The Mongo repository is verified live (see the spec), not unit-tested — deliberate.
 
 ## 4. Deploy
-See README §Deploy: one-click Render (API + Redis via `render.yaml`) and Vercel (UI). You supply a MongoDB Atlas URL. Then set `CORS_ORIGIN` on Render to the Vercel domain.
+One-click links are in README §Deploy (Render for API + Redis via `render.yaml`, Vercel for the UI). Manual settings if you prefer the dashboards:
+
+**Render (`api`)** — root directory `api`; build `npm ci --include=dev && npm run build` (Render sets `NODE_ENV=production`, which makes plain `npm ci` skip the devDependencies that `nest build` needs); start `npm run start:prod`; env `REDIS_URL`, `MONGO_URL`, `CORS_ORIGIN`.
+**Vercel (`web`)** — root directory `web`; env `NEXT_PUBLIC_API_URL` (baked in at build time — redeploy after changing it).
+**Redis** — Upstash or Render Key Value, `maxmemory-policy noeviction`. **Mongo** — Atlas M0, network access `0.0.0.0/0`.
+After both are up: set `CORS_ORIGIN` on Render to the Vercel domain and redeploy the API.
 
 ## 5. 90-second demo script (split screen)
 Left: the UI. Right: `docker compose logs -f api | grep -E '▶|✔'` (or the Render log stream).

@@ -123,31 +123,33 @@ Wall clock is max(1.5, 3, 4.5) s, not the 9 s sum.
 
 Numbers are synthetic (fixed mock delays) — the shape is the point, not the magnitude. Run it locally only: against a free-tier hosted Redis, 300 jobs of BullMQ polling eats a visible slice of the monthly command quota.
 
-## Deploy
+## Deploy (author's path — the interviewer needs only Docker)
 
-**One-click:** [Deploy the API + Redis to Render](https://render.com/deploy?repo=https://github.com/amannarayanshukla/meeting-intelligence-pipeline) (uses `render.yaml`; you'll be prompted for `MONGO_URL` — create a free M0 cluster at [MongoDB Atlas](https://www.mongodb.com/atlas), allow `0.0.0.0/0`, and paste the `mongodb+srv://…/meetings` string). Then [deploy the UI to Vercel](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Famannarayanshukla%2Fmeeting-intelligence-pipeline&root-directory=web&env=NEXT_PUBLIC_API_URL&envDescription=Base%20URL%20of%20the%20Render%20API%20service&project-name=meeting-intelligence-pipeline) and set `NEXT_PUBLIC_API_URL` to the Render URL. Finally set `CORS_ORIGIN` on Render to the Vercel domain.
-
-Manual settings, if you prefer the dashboards:
-
-**Render (`api`)**
-
-- Root directory: `api`
-- Build command: `npm ci --include=dev && npm run build` (Render sets `NODE_ENV=production`, which makes plain `npm ci` skip the devDependencies that `nest build` needs)
-- Start command: `npm run start:prod`
-- Env: `REDIS_URL`, `MONGO_URL`, `CORS_ORIGIN`
-
-**Vercel (`web`)**
-
-- Root directory: `web`
-- Env: `NEXT_PUBLIC_API_URL`
-
-**Redis:** Upstash or Render Key Value.
-**Mongo:** Atlas M0.
+- **API + Redis on Render:** [one click](https://render.com/deploy?repo=https://github.com/amannarayanshukla/meeting-intelligence-pipeline) via `render.yaml`; you're prompted for a MongoDB Atlas `MONGO_URL` (free M0, allow `0.0.0.0/0`).
+- **UI on Vercel:** [one click](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Famannarayanshukla%2Fmeeting-intelligence-pipeline&root-directory=web&env=NEXT_PUBLIC_API_URL&envDescription=Base%20URL%20of%20the%20Render%20API%20service&project-name=meeting-intelligence-pipeline); set `NEXT_PUBLIC_API_URL` to the Render URL, then set `CORS_ORIGIN` on Render to the Vercel domain.
+- Gotchas (Render must build with `npm ci --include=dev`; Vercel bakes `NEXT_PUBLIC_*` at build time) and the manual dashboard settings: [docs/PLAYBOOK.md §4](docs/PLAYBOOK.md#4-deploy).
 
 ## Design
 
 See [`docs/superpowers/specs/2026-08-30-meeting-pipeline-design.md`](docs/superpowers/specs/2026-08-30-meeting-pipeline-design.md) for the decisions table, tradeoffs, and the ceilings each `// ponytail:` comment names.
 
-## Deliberate simplifications (grep `ponytail:`)
+## Known limits — and why
 
-API and worker share one process · single queue · polling not SSE · mock LLM with staggered delays.
+Every one of these is a decision, not an oversight; the code marks each with a `// ponytail:` comment naming the ceiling (`grep -rn 'ponytail:' api/src web/src`). Columns: what's limited · why it was chosen · what to do when it bites.
+
+| Limit | Why | When it bites → next step |
+|---|---|---|
+| LLM is a mock: canned text, fixed 1.5 / 3 / 4.5 s delays | No API key, and the architecture — not prompt quality — is the point; fixed delays make the parallel reveal visible | Real output needed → `GeminiLlmClient` behind the `LlmClient` adapter: one file plus one provider line in `llm.module.ts` |
+| API and worker run in one process | One deployable, one `node dist/main` | Worker load hurts API latency, or workers must scale alone → second entrypoint importing `MeetingsModule` without the controller, then N worker processes |
+| One queue for three job kinds | They share retry/backoff/concurrency today | A kind needs its own policy (embeddings hitting a provider rate limit) → per-kind queues, same processors |
+| Create-then-enqueue is not atomic | Two systems, no distributed transaction; a Redis blip mid-enqueue leaves an orphan `processing` doc — but the client got a 500 and never sees the id | Orphans matter → outbox table, or enqueue first and create the doc from the first worker |
+| UI polls every 1.5 s | Simplest transport; stops on settle | ~50 GET/s per 100 open dashboards (measured above) → SSE endpoint fed by BullMQ `completed`/`failed` events |
+| `status` turns `failed` only after all three kinds settle | No counter, no race; each card shows its own error immediately | Need a fast red badge → emit `failed` on first error, keep polling until settle |
+| Hook retries fetch errors forever | A deploy blip or CORS typo shouldn't kill the session | A deleted meeting spins the UI → cap consecutive failures and surface it |
+| No auth, no rate limit, `CORS_ORIGIN=*` by default | Prototype; nothing to protect | Public URL for real → API key/JWT, `@nestjs/throttler`, tighten CORS |
+| Meetings are never deleted; jobs pruned after 1 h (ok) / 24 h (failed) | Retention is a product decision | Mongo grows → TTL index on `createdAt` |
+| 1 MB body, 200 000-char transcript, one job per kind | A 60-minute transcript fits; each worker reads it once from Mongo (payload is only the id) | Multi-hour transcripts or model context limits → chunk inside the processor (map-reduce summary) |
+| Embedding is 768 deterministic floats, no vector index | Shows the third parallel branch without an embeddings provider | Semantic search → real embeddings + Atlas Vector Search / Elasticsearch `dense_vector` |
+| Mongo repository verified live, not unit-tested | `InMemoryMeetingRepository` pins the contract; Mongo needs a server | CI must prove both impls → `describe.each([InMemory, Mongo])` contract suite gated on `MONGO_URL` |
+| No health endpoint, no metrics | Logs already show the parallelism | Production → `GET /api/health`, queue depth/age from `queue.getJobCounts()`, OpenTelemetry |
+| Load numbers are synthetic | Fixed mock delays on a laptop; the *shape* — flat acceptance, knob-bound drain — is what's real | Real provider → re-run; expect provider rate limits, not CPU, to be the first wall |
