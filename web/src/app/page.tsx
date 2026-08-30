@@ -46,6 +46,7 @@ export default function Home() {
         onChange={(e) => setTranscript(e.target.value)}
         rows={10}
         placeholder="Paste a meeting transcript…"
+        aria-label="Meeting transcript"
         className="font-mono text-xs"
       />
 
