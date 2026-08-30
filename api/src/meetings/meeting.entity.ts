@@ -22,9 +22,13 @@ export interface Meeting {
 }
 
 /** What a processor produces. */
-export type MeetingPatch = Partial<Pick<Meeting, 'summary' | 'actions' | 'vector'>>;
+export type MeetingPatch = Partial<
+  Pick<Meeting, 'summary' | 'actions' | 'vector'>
+>;
 /** What the repository accepts (processor output or a failure note). */
-export type MeetingUpdate = MeetingPatch & { errors?: Partial<Record<JobKind, string>> };
+export type MeetingUpdate = MeetingPatch & {
+  errors?: Partial<Record<JobKind, string>>;
+};
 
 export type MeetingStatus = 'processing' | 'done' | 'failed';
 

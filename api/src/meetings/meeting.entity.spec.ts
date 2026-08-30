@@ -1,4 +1,4 @@
-import { deriveStatus, Meeting } from './meeting.entity';
+import { deriveStatus, Meeting } from './meeting.entity.js';
 
 const base: Meeting = {
   id: 'm1',
@@ -15,7 +15,16 @@ describe('deriveStatus', () => {
     ['nothing done', {}, 'processing'],
     ['two of three', { summary: ['a'], actions: [] }, 'processing'],
     ['all three', { summary: ['a'], actions: [], vector: [0.1] }, 'done'],
-    ['error wins', { summary: ['a'], actions: [], vector: [0.1], errors: { vectorize: 'boom' } }, 'failed'],
+    [
+      'error wins',
+      {
+        summary: ['a'],
+        actions: [],
+        vector: [0.1],
+        errors: { vectorize: 'boom' },
+      },
+      'failed',
+    ],
   ])('%s → %s', (_, patch, expected) => {
     expect(deriveStatus({ ...base, ...patch })).toBe(expected);
   });
