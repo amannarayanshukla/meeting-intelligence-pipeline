@@ -1977,7 +1977,7 @@ gh repo create meeting-intelligence-pipeline --public --source=. --push
 
 Render → New → Web Service → connect the repo:
 - Root Directory: `api`
-- Build Command: `npm ci && npm run build`
+- Build Command: `npm ci --include=dev && npm run build` (Render sets `NODE_ENV=production`, which makes plain `npm ci` skip the devDependencies that `nest build` needs)
 - Start Command: `npm run start:prod`
 - Environment: `REDIS_URL`, `MONGO_URL`, `CORS_ORIGIN=https://<your-vercel-domain>` (set after Step 6; `*` is fine until then)
 

@@ -37,6 +37,7 @@ export default function Home() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Meeting Intelligence Pipeline</h1>
           <p className="text-sm text-muted-foreground">Transcript → BullMQ → 3 parallel workers → live reveal</p>
+          <Badge variant="outline" className="mt-2 font-mono text-[11px]">Mock LLM · canned output · 1.5 / 3 / 4.5 s</Badge>
         </div>
         {status && <Badge variant={badgeVariant[status.status]}>{status.status}</Badge>}
       </header>
@@ -74,6 +75,12 @@ export default function Home() {
           <MeetingCard title="Action Items" data={status?.actions ?? null} error={status?.errors.extract_actions}>
             {(items) => (
               <table className="w-full text-sm">
+                <thead>
+                  <tr>
+                    <th className="py-1 pr-2 text-left font-medium text-muted-foreground">Task</th>
+                    <th className="py-1 text-right font-medium text-muted-foreground">Owner</th>
+                  </tr>
+                </thead>
                 <tbody>
                   {items.map((a, i) => (
                     <tr key={i} className="border-b border-border last:border-0">
